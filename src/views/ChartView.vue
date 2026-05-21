@@ -64,18 +64,16 @@
         v-model="pasteInput"
         class="paste-area"
         rows="6"
-        placeholder="Поддерживается:&#10;1. JSON: [{x:15, y:687}, {x:30, y:888}]&#10;2. Строки: 15, 687&#10;            30, 888&#10;3. Табуляция: 15\t688"
+        placeholder="Поддерживается:&#10;1. JSON: [{x:15, y:687}]&#10;2. Строки: 15, 687&#10;3. Табуляция: 15[Tab]0,0687"
       ></textarea>
-      <button @click="parsePasteInput" class="btn btn-primary">
-        📥 Применить данные
-      </button>
-      <button
-        @click="fillPasteExample"
-        class="btn btn-outline"
-        style="margin-left: 10px"
-      >
-        Пример
-      </button>
+      <div class="paste-buttons">
+        <button @click="parsePasteInput" class="btn btn-primary">
+          📥 Применить данные
+        </button>
+        <button @click="fillPasteExample" class="btn btn-outline">
+          📄 Пример
+        </button>
+      </div>
     </div>
 
     <!-- Общие кнопки -->
@@ -86,7 +84,7 @@
         :disabled="fields.length < 2"
         class="btn btn-primary"
       >
-        Построить график
+        📈 Построить график
       </button>
       <button @click="clearAll" class="btn btn-outline">🗑️ Очистить всё</button>
     </div>
@@ -120,7 +118,7 @@
             updateChart();
           "
         >
-          ⚡ Точки + прямые линии
+          ⚡ Точечный + прямая тренда
         </button>
       </div>
     </div>
@@ -128,7 +126,88 @@
     <!-- Панель анализа -->
     <div v-if="dataPoints.length >= 2" class="analysis-panel">
       <h3>🔍 Инструменты анализа</h3>
-      <div class="analysis-controls">
+
+      <!-- Для точечного графика: перпендикуляры + tg через 2 точки -->
+      <div v-if="chartType === 'scatter'" class="scatter-tools">
+        <!-- Перпендикуляры от одной точки -->
+        <div class="tool-section">
+          <label>⊥ Перпендикуляры от точки:</label>
+          <div class="tool-row">
+            <input
+              type="number"
+              v-model.number="perpX"
+              class="input-small"
+              placeholder="X"
+              @input="drawPerpendiculars"
+            />
+            <span v-if="perpY !== null" class="coord-hint"
+              >→ Y = {{ formatDisplay(perpY) }}</span
+            >
+          </div>
+        </div>
+
+        <!-- tg через 2 точки -->
+        <div class="tool-section">
+          <label>📐 tg(α) через 2 точки:</label>
+          <div class="tool-row">
+            <input
+              type="number"
+              v-model.number="point1X"
+              class="input-small"
+              placeholder="X₁"
+              @input="calcTg"
+            />
+            <span class="arrow">→</span>
+            <input
+              type="number"
+              v-model.number="point2X"
+              class="input-small"
+              placeholder="X₂"
+              @input="calcTg"
+            />
+          </div>
+        </div>
+
+        <!-- Результаты -->
+        <div v-if="tgResult !== null || perpY !== null" class="perp-results">
+          <div v-if="perpY !== null" class="result-row">
+            🔹 Точка на прямой:
+            <strong
+              >({{ formatDisplay(perpX) }}, {{ formatDisplay(perpY) }})</strong
+            >
+          </div>
+          <div v-if="tgResult !== null" class="result-row">
+            📐 Точка 1:
+            <strong
+              >({{ formatDisplay(point1X) }},
+              {{ formatDisplay(point1Y) }})</strong
+            >
+          </div>
+          <div v-if="tgResult !== null" class="result-row">
+            📐 Точка 2:
+            <strong
+              >({{ formatDisplay(point2X) }},
+              {{ formatDisplay(point2Y) }})</strong
+            >
+          </div>
+          <div v-if="tgResult !== null" class="result-row">
+            ΔX = {{ formatDisplay(deltaX) }}, ΔY = {{ formatDisplay(deltaY) }}
+          </div>
+          <div v-if="tgResult !== null" class="result-row">
+            tg(α) = ΔY/ΔX = <strong>{{ formatDisplay(tgResult) }}</strong>
+          </div>
+          <div v-if="angleDeg !== null" class="result-row">
+            📏 Угол наклона: <strong>{{ formatDisplay(angleDeg) }}°</strong>
+          </div>
+          <div class="result-row small">
+            Прямая: y = {{ formatDisplay(trendSlope) }}x +
+            {{ formatDisplay(trendIntercept) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Для линейного графика: касательная -->
+      <div v-if="chartType === 'line'" class="analysis-controls">
         <label class="checkbox-label">
           <input
             type="checkbox"
@@ -137,10 +216,7 @@
           />
           📊 Показать линию тренда
         </label>
-        <div
-          class="tangent-control"
-          v-if="dataPoints.length >= 2 && chartType !== 'bar'"
-        >
+        <div class="tangent-control" v-if="dataPoints.length >= 2">
           <label>Касательная в точке:</label>
           <select v-model="tangentIndex" @change="updateChart">
             <option value="-1">Не показывать</option>
@@ -151,37 +227,24 @@
         </div>
       </div>
 
-      <div v-if="tangentSlope !== null" class="tangent-results">
+      <!-- Результаты касательной (для line) -->
+      <div
+        v-if="chartType === 'line' && tangentSlope !== null"
+        class="tangent-results"
+      >
         <div class="result-row">
-          📐 <strong>Уравнение:</strong> y = {{ formatDisplay(tangentSlope) }}x
-          + {{ formatDisplay(tangentB) }}
+          📐 <strong>Уравнение касательной:</strong> y =
+          {{ formatDisplay(tangentSlope) }}x + {{ formatDisplay(tangentB) }}
         </div>
         <div class="result-row">
-          📉 <strong>Пересечение с Y</strong> (x=0):
+          📉 <strong>Пересечение с Y:</strong>
           <span class="highlight">y ≈ {{ formatDisplay(tangentB) }}</span>
-          <span class="marker-hint">● точка на графике</span>
         </div>
         <div class="result-row" v-if="tangentIntercept !== null">
-          ➡️ <strong>Пересечение с X</strong> (y=0):
+          ➡️ <strong>Пересечение с X:</strong>
           <span class="highlight"
             >x ≈ {{ formatDisplay(tangentIntercept) }}</span
           >
-        </div>
-        <div class="result-row prediction">
-          🎯 <strong>Прогноз Y при X =</strong>
-          <input
-            type="number"
-            v-model.number="predictX"
-            class="input-predict"
-            @input="replaceComma"
-            placeholder="0"
-          />
-          <span class="arrow">→</span>
-          <span class="highlight">y ≈ {{ formatDisplay(predictedY) }}</span>
-        </div>
-        <div class="note">
-          ⚠️ Масштабы осей X и Y независимы. Визуальный угол наклона может
-          отличаться от расчётного.
         </div>
       </div>
     </div>
@@ -204,28 +267,38 @@ const dataPoints = ref([]);
 const chartType = ref("line");
 let chartInstance = null;
 
+// Линейный график
 const showTrendline = ref(false);
 const tangentIndex = ref("-1");
 const tangentIntercept = ref(null);
 const tangentSlope = ref(null);
 const tangentB = ref(null);
-const predictX = ref(0);
+
+// Точечный график
+const trendSlope = ref(null);
+const trendIntercept = ref(null);
+
+// Перпендикуляры
+const perpX = ref(null);
+const perpY = ref(null);
+
+// tg через 2 точки
+const point1X = ref(null);
+const point2X = ref(null);
+const point1Y = ref(null);
+const point2Y = ref(null);
+const deltaX = ref(null);
+const deltaY = ref(null);
+const tgResult = ref(null);
+const angleDeg = ref(null);
 
 const sortedPoints = computed(() =>
   [...dataPoints.value].sort((a, b) => a.x - b.x),
 );
-const predictedY = computed(() => {
-  if (tangentSlope.value === null) return null;
-  return tangentSlope.value * predictX.value + (tangentB.value || 0);
-});
 
 const formatDecimal = (field, key) => {
   if (field[key] && typeof field[key] === "string")
     field[key] = field[key].replace(",", ".");
-};
-const replaceComma = (e) => {
-  if (e.target.value.includes(","))
-    predictX.value = parseFloat(e.target.value.replace(",", "."));
 };
 
 const generateFields = () => {
@@ -236,13 +309,11 @@ const generateFields = () => {
 };
 
 const fillPasteExample = () => {
-  pasteInput.value = `[
-  { "x": 15, "y": 687 },
-  { "x": 30, "y": 888 },
-  { "x": 45, "y": 996 },
-  { "x": 60, "y": 1035 },
-  { "x": 90, "y": 1090 }
-]`;
+  pasteInput.value = `15, 0.0687
+    30, 0.0888
+    45, 0.0996
+    60, 0.1035
+    90, 0.109`;
 };
 
 const parsePasteInput = () => {
@@ -250,8 +321,14 @@ const parsePasteInput = () => {
   if (!text) return alert("Поле пустое");
 
   let points = [];
+
+  // 🔧 Шаг 1: Предварительная обработка — заменяем запятые на точки ВЕСЬ текст
+  // Это нужно для чисел вида "7,389446" (европейский формат)
+  const normalizedText = text.replace(/,/g, ".");
+
   try {
-    const json = JSON.parse(text);
+    // Попытка парсинга JSON
+    const json = JSON.parse(normalizedText);
     if (Array.isArray(json)) {
       points = json.map((p) => ({
         x: parseFloat(p.x ?? p[0]),
@@ -259,19 +336,28 @@ const parsePasteInput = () => {
       }));
     }
   } catch {
-    text.split("\n").forEach((line) => {
-      const parts = line.split(/[\t,\s]+/).filter(Boolean);
+    // Fallback: построчный парсинг
+    normalizedText.split("\n").forEach((line) => {
+      // Разделяем по табуляции ИЛИ 2+ пробелам ИЛИ запятой (после замены на точку)
+      const parts = line
+        .split(/[\t]| {2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+
       if (parts.length >= 2) {
-        points.push({
-          x: parseFloat(parts[0].replace(",", ".")),
-          y: parseFloat(parts[1].replace(",", ".")),
-        });
+        const x = parseFloat(parts[0]);
+        const y = parseFloat(parts[1]);
+
+        if (!isNaN(x) && !isNaN(y)) {
+          points.push({ x, y });
+        }
       }
     });
   }
 
   points = points.filter((p) => !isNaN(p.x) && !isNaN(p.y));
-  if (points.length < 2) return alert("Нужно минимум 2 корректные точки");
+  if (points.length < 2)
+    return alert("Нужно минимум 2 корректные точки. Проверьте формат данных.");
 
   dataPoints.value = points;
   updateChart();
@@ -281,12 +367,25 @@ const clearAll = () => {
   fields.value = [];
   pasteInput.value = "";
   dataPoints.value = [];
+  // Сброс линейного
   tangentIntercept.value = null;
   tangentSlope.value = null;
   tangentB.value = null;
   showTrendline.value = false;
   tangentIndex.value = "-1";
-  predictX.value = 0;
+  // Сброс точечного
+  trendSlope.value = null;
+  trendIntercept.value = null;
+  perpX.value = null;
+  perpY.value = null;
+  point1X.value = null;
+  point2X.value = null;
+  point1Y.value = null;
+  point2Y.value = null;
+  deltaX.value = null;
+  deltaY.value = null;
+  tgResult.value = null;
+  angleDeg.value = null;
   chartType.value = "line";
   if (chartInstance) chartInstance.destroy();
 };
@@ -305,20 +404,68 @@ const buildChart = () => {
   updateChart();
 };
 
+// Линейная регрессия
+const calcTrendline = (points) => {
+  const n = points.length;
+  let sumX = 0,
+    sumY = 0,
+    sumXY = 0,
+    sumXX = 0;
+  points.forEach((p) => {
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += p.x * p.y;
+    sumXX += p.x * p.x;
+  });
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+};
+
+// 🔷 Перпендикуляры от точки на прямой
+const drawPerpendiculars = () => {
+  if (perpX.value === null || trendSlope.value === null) return;
+  perpY.value = trendSlope.value * perpX.value + trendIntercept.value;
+  updateChart();
+};
+
+// 📐 tg через 2 точки на прямой
+const calcTg = () => {
+  if (
+    point1X.value === null ||
+    point2X.value === null ||
+    trendSlope.value === null
+  )
+    return;
+  if (point1X.value === point2X.value) {
+    tgResult.value = null;
+    angleDeg.value = null;
+    return;
+  }
+
+  point1Y.value = trendSlope.value * point1X.value + trendIntercept.value;
+  point2Y.value = trendSlope.value * point2X.value + trendIntercept.value;
+
+  deltaX.value = point2X.value - point1X.value;
+  deltaY.value = point2Y.value - point1Y.value;
+  tgResult.value = deltaY.value / deltaX.value;
+  angleDeg.value = Math.atan(tgResult.value) * (180 / Math.PI);
+  updateChart();
+};
+
 const updateChart = () => {
   if (!cv.value || !dataPoints.value.length) return;
   if (chartInstance) chartInstance.destroy();
 
   const points = sortedPoints.value;
-  if (chartType.value === "bar") {
-    tangentSlope.value = null;
-    tangentB.value = null;
-    tangentIntercept.value = null;
-  }
-
   const datasets = [];
 
-  // 📈 ЛИНЕЙНЫЙ (плавный с крупными точками)
+  // Рассчитываем тренд
+  const trend = calcTrendline(points);
+  trendSlope.value = trend.slope;
+  trendIntercept.value = trend.intercept;
+
+  // 📈 ЛИНЕЙНЫЙ
   if (chartType.value === "line") {
     datasets.push({
       label: "Данные",
@@ -335,12 +482,86 @@ const updateChart = () => {
       tension: 0.35,
       fill: false,
     });
+
+    if (showTrendline.value) {
+      datasets.push({
+        label: "Линия тренда",
+        data: [
+          { x: points[0].x, y: trend.slope * points[0].x + trend.intercept },
+          {
+            x: points[points.length - 1].x,
+            y: trend.slope * points[points.length - 1].x + trend.intercept,
+          },
+        ],
+        borderColor: "#9467bd",
+        borderDash: [6, 4],
+        pointRadius: 0,
+        borderWidth: 2,
+        parsing: false,
+        type: "line",
+      });
+    }
+
+    // Касательная
+    const idx = parseInt(tangentIndex.value);
+    if (idx >= 0 && points[idx]) {
+      const p = points[idx];
+      let slope = 0;
+      if (idx > 0 && idx < points.length - 1) {
+        slope =
+          (points[idx + 1].y - points[idx - 1].y) /
+          (points[idx + 1].x - points[idx - 1].x);
+      } else if (idx === 0 && points.length > 1) {
+        slope = (points[1].y - points[0].y) / (points[1].x - points[0].x);
+      } else {
+        slope =
+          (points[idx].y - points[idx - 1].y) /
+          (points[idx].x - points[idx - 1].x);
+      }
+      const b = p.y - slope * p.x;
+      tangentSlope.value = slope;
+      tangentB.value = b;
+      if (slope !== 0) tangentIntercept.value = -b / slope;
+
+      const xMin = points[0].x,
+        xMax = points[points.length - 1].x;
+      const range = (xMax - xMin) * 0.5;
+      datasets.push({
+        label: "Касательная",
+        data: [
+          { x: p.x - range, y: slope * (p.x - range) + b },
+          { x: p.x + range, y: slope * (p.x + range) + b },
+        ],
+        borderColor: "#2ca02c",
+        borderDash: [4, 4],
+        pointRadius: 0,
+        borderWidth: 2,
+        parsing: false,
+        type: "line",
+      });
+      datasets.push({
+        label: "Пересечение с Y",
+        data: [{ x: 0, y: b }],
+        borderColor: "#e377c2",
+        backgroundColor: "#e377c2",
+        pointRadius: 7,
+        parsing: false,
+        showLine: false,
+        type: "scatter",
+      });
+    }
   }
   // 📊 ГИСТОГРАММА
   else if (chartType.value === "bar") {
+    // Для гистограммы X должны быть строками (категориями)
+    const barData = points.map((p, i) => ({
+      x: `Т${i + 1}: ${formatDisplay(p.x)}`, // Конвертируем число в строку-метку
+      y: p.y,
+    }));
+
     datasets.push({
       label: "Данные",
-      data: points.map((p) => ({ x: p.x, y: p.y })),
+      data: barData,
       backgroundColor: "rgba(31, 119, 180, 0.7)",
       borderColor: "#1f77b4",
       borderWidth: 1,
@@ -348,115 +569,116 @@ const updateChart = () => {
       categoryPercentage: 0.9,
     });
   }
-  // ⚡ ТОЧКИ + ПРЯМЫЕ ЛИНИИ
+  // ⚡ ТОЧЕЧНЫЙ + ПРЯМАЯ + ПЕРПЕНДИКУЛЯРЫ + TG
   else {
+    // Точки данных
     datasets.push({
-      label: "Данные",
+      label: "Точки данных",
       data: points,
-      type: "line",
+      type: "scatter",
       borderColor: "#d62728",
-      backgroundColor: "transparent",
-      borderWidth: 2,
-      pointRadius: 8,
-      pointBackgroundColor: "#d62728",
+      backgroundColor: "#d62728",
+      pointRadius: 6,
       pointBorderColor: "#ffffff",
-      pointBorderWidth: 2.5,
-      pointHoverRadius: 11,
+      pointBorderWidth: 1.5,
+      pointHoverRadius: 9,
       parsing: false,
-      tension: 0, // Строго прямые отрезки
-      fill: false,
     });
-  }
 
-  // Линия тренда
-  if (showTrendline.value && points.length > 1 && chartType.value !== "bar") {
-    const n = points.length;
-    let sumX = 0,
-      sumY = 0,
-      sumXY = 0,
-      sumXX = 0;
-    points.forEach((p) => {
-      sumX += p.x;
-      sumY += p.y;
-      sumXY += p.x * p.y;
-      sumXX += p.x * p.x;
-    });
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
+    // Линия тренда (сплошная)
+    const xMin = points[0].x,
+      xMax = points[points.length - 1].x;
+    const drawXMin = xMin - (xMax - xMin) * 0.1;
+    const drawXMax = xMax + (xMax - xMin) * 0.1;
+
     datasets.push({
       label: "Линия тренда",
       data: [
-        { x: points[0].x, y: slope * points[0].x + intercept },
-        {
-          x: points[points.length - 1].x,
-          y: slope * points[points.length - 1].x + intercept,
-        },
+        { x: drawXMin, y: trend.slope * drawXMin + trend.intercept },
+        { x: drawXMax, y: trend.slope * drawXMax + trend.intercept },
       ],
-      borderColor: "#9467bd",
-      borderDash: [6, 4],
+      borderColor: "#1f77b4",
+      borderWidth: 2.5,
       pointRadius: 0,
-      borderWidth: 2,
       parsing: false,
       type: "line",
+      fill: false,
     });
-  }
 
-  // Касательная
-  tangentIntercept.value = null;
-  tangentSlope.value = null;
-  tangentB.value = null;
-  const idx = parseInt(tangentIndex.value);
+    // 🔷 Перпендикуляры
+    if (
+      perpX.value !== null &&
+      !isNaN(perpX.value) &&
+      trendSlope.value !== null
+    ) {
+      const y = trend.slope * perpX.value + trend.intercept;
 
-  if (idx >= 0 && points[idx] && chartType.value !== "bar") {
-    const p = points[idx];
-    let slope = 0;
-    if (idx > 0 && idx < points.length - 1) {
-      slope =
-        (points[idx + 1].y - points[idx - 1].y) /
-        (points[idx + 1].x - points[idx - 1].x);
-    } else if (idx === 0 && points.length > 1) {
-      slope = (points[1].y - points[0].y) / (points[1].x - points[0].x);
-    } else if (idx === points.length - 1 && points.length > 1) {
-      slope =
-        (points[idx].y - points[idx - 1].y) /
-        (points[idx].x - points[idx - 1].x);
+      // Вертикальная линия к оси X
+      datasets.push({
+        label: "⊥ к X",
+        data: [
+          { x: perpX.value, y: 0 },
+          { x: perpX.value, y: y },
+        ],
+        borderColor: "#ff7f0e",
+        borderDash: [5, 3],
+        borderWidth: 2,
+        pointRadius: 0,
+        parsing: false,
+        type: "line",
+      });
+      // Горизонтальная линия к оси Y
+      datasets.push({
+        label: "⊥ к Y",
+        data: [
+          { x: 0, y: y },
+          { x: perpX.value, y: y },
+        ],
+        borderColor: "#2ca02c",
+        borderDash: [5, 3],
+        borderWidth: 2,
+        pointRadius: 0,
+        parsing: false,
+        type: "line",
+      });
+      // Точка на прямой
+      datasets.push({
+        label: "Точка на прямой",
+        data: [{ x: perpX.value, y: y }],
+        backgroundColor: "#ff7f0e",
+        borderColor: "#ff7f0e",
+        pointRadius: 8,
+        pointHoverRadius: 10,
+        parsing: false,
+        showLine: false,
+        type: "scatter",
+      });
     }
 
-    const b = p.y - slope * p.x;
-    tangentSlope.value = slope;
-    tangentB.value = b;
-    if (slope !== 0) tangentIntercept.value = -b / slope;
-
-    const xMin = Math.min(...points.map((pt) => pt.x));
-    const xMax = Math.max(...points.map((pt) => pt.x));
-    const drawXMin = xMin - (xMax - xMin) * 0.5;
-    const drawXMax = xMax + (xMax - xMin) * 0.5;
-
-    datasets.push({
-      label: "Касательная",
-      data: [
-        { x: drawXMin, y: slope * drawXMin + b },
-        { x: drawXMax, y: slope * drawXMax + b },
-      ],
-      borderColor: "#2ca02c",
-      borderDash: [3, 3],
-      pointRadius: 0,
-      borderWidth: 2,
-      parsing: false,
-      type: "line",
-    });
-
-    datasets.push({
-      label: "Пересечение с Y",
-      data: [{ x: 0, y: b }],
-      borderColor: "#e377c2",
-      backgroundColor: "#e377c2",
-      pointRadius: 8,
-      pointHoverRadius: 10,
-      parsing: false,
-      showLine: false,
-      type: "scatter",
-    });
+    // 📐 Маркеры для tg
+    if (
+      point1X.value !== null &&
+      point2X.value !== null &&
+      point1X.value !== point2X.value &&
+      trendSlope.value !== null
+    ) {
+      const y1 = trend.slope * point1X.value + trend.intercept;
+      const y2 = trend.slope * point2X.value + trend.intercept;
+      datasets.push({
+        label: "Точки для tg",
+        data: [
+          { x: point1X.value, y: y1 },
+          { x: point2X.value, y: y2 },
+        ],
+        backgroundColor: "#9467bd",
+        borderColor: "#9467bd",
+        pointRadius: 9,
+        pointHoverRadius: 11,
+        parsing: false,
+        showLine: false,
+        type: "scatter",
+      });
+    }
   }
 
   chartInstance = new Chart(cv.value, {
@@ -471,6 +693,7 @@ const updateChart = () => {
           type: chartType.value === "bar" ? "category" : "linear",
           title: { display: true, text: "Ось X" },
           grid: { color: "#eef2f6" },
+          beginAtZero: chartType.value === "scatter",
         },
         y: {
           type: "linear",
@@ -485,16 +708,24 @@ const updateChart = () => {
           labels: { usePointStyle: true, padding: 20 },
         },
         tooltip: {
-          backgroundColor: "rgba(0,0,0,0.8)",
-          padding: 10,
-          titleFont: { size: 13 },
+          backgroundColor: "rgba(0,0,0,0.85)",
+          padding: 12,
+          titleFont: { size: 13, weight: "bold" },
           bodyFont: { size: 13 },
           callbacks: {
             label: (ctx) => {
-              if (ctx.dataset.label === "Данные")
+              if (
+                ctx.dataset.label === "Точки данных" ||
+                ctx.dataset.label === "Данные"
+              ) {
                 return `X: ${formatDisplay(ctx.raw.x || ctx.label)}, Y: ${formatDisplay(ctx.raw.y || ctx.parsed.y)}`;
-              if (ctx.dataset.label === "Пересечение с Y")
-                return `Точка пересечения: (0, ${formatDisplay(ctx.raw.y)})`;
+              }
+              if (
+                ctx.dataset.label === "Точка на прямой" ||
+                ctx.dataset.label === "Точки для tg"
+              ) {
+                return `📍 Точка: X=${formatDisplay(ctx.raw.x)}, Y=${formatDisplay(ctx.raw.y)}`;
+              }
               return ctx.dataset.label;
             },
           },
@@ -504,12 +735,15 @@ const updateChart = () => {
   });
 };
 
-watch(tangentIndex, () => {
-  predictX.value = 0;
-});
 watch(chartType, () => {
   tangentIndex.value = "-1";
   showTrendline.value = false;
+  perpX.value = null;
+  perpY.value = null;
+  point1X.value = null;
+  point2X.value = null;
+  tgResult.value = null;
+  angleDeg.value = null;
 });
 
 onUnmounted(() => {
@@ -620,6 +854,13 @@ onUnmounted(() => {
   border-color: #1f77b4;
 }
 
+.paste-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: nowrap;
+}
+
 .actions {
   display: flex;
   gap: 10px;
@@ -696,13 +937,14 @@ onUnmounted(() => {
 
 .chart-box {
   position: relative;
-  height: 450px;
+  height: 500px;
   width: 100%;
   margin: 20px 0;
   background: #fff;
   border: 1px solid #eef2f6;
   border-radius: 8px;
 }
+
 .analysis-panel {
   background: #f0f7ff;
   border: 1px solid #b3d4ff;
@@ -715,6 +957,62 @@ onUnmounted(() => {
   font-size: 1.1em;
   color: #0056b3;
 }
+
+.scatter-tools {
+  background: #fff;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 4px solid #ff7f0e;
+  margin-bottom: 15px;
+}
+.tool-section {
+  margin-bottom: 12px;
+}
+.tool-section label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 0.95em;
+  color: #333;
+}
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tool-row .arrow {
+  color: #666;
+  font-weight: bold;
+}
+.coord-hint {
+  font-size: 0.9em;
+  color: #1f77b4;
+  font-weight: 500;
+}
+
+.perp-results {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 10px;
+}
+.result-row {
+  margin: 6px 0;
+  font-size: 0.95em;
+  color: #333;
+}
+.result-row.small {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 8px;
+}
+.highlight {
+  font-weight: bold;
+  color: #0056b3;
+  margin-left: 5px;
+}
+
 .analysis-controls {
   display: flex;
   flex-direction: column;
@@ -744,49 +1042,6 @@ onUnmounted(() => {
   background: #fff;
   padding: 12px;
   border-radius: 6px;
-  border-left: 4px solid #2ca02c;
-}
-.result-row {
-  margin: 6px 0;
-  font-size: 0.95em;
-  color: #333;
-}
-.highlight {
-  font-weight: bold;
-  color: #0056b3;
-  margin-left: 5px;
-}
-.marker-hint {
-  font-size: 0.85em;
-  color: #e377c2;
-  margin-left: 8px;
-}
-.prediction {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #ddd;
-}
-.input-predict {
-  width: 70px;
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-.arrow {
-  font-weight: bold;
-  color: #666;
-}
-.note {
-  margin-top: 10px;
-  font-size: 0.85em;
-  color: #666;
-  background: #fff8e1;
-  padding: 6px 10px;
-  border-radius: 4px;
-  border-left: 3px solid #ffc107;
+  border-left: 4px solid #9467bd;
 }
 </style>
