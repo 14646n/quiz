@@ -1,0 +1,26 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - main # Деплой запускается ТОЛЬКО при пуше в main (продакшн)
+  pull_request:
+    branches:
+      - main # Опционально: можно запускать тесты при пулл-реквестах
+
+jobs:
+  deploy:
+    name: Deploy App
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Скачиваем код из репозитория
+      - uses: actions/checkout@v4
+
+      # 2. Деплоим на Firebase Hosting
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: education-service-f2f0e
+          channelId: live # Публикуем сразу на "живой" сайт
