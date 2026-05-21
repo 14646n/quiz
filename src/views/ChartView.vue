@@ -139,6 +139,7 @@
               class="input-small"
               placeholder="X"
               @input="drawPerpendiculars"
+              @blur="drawPerpendiculars"
             />
             <span v-if="perpY !== null" class="coord-hint"
               >→ Y = {{ formatDisplay(perpY) }}</span
@@ -155,7 +156,7 @@
               v-model.number="point1X"
               class="input-small"
               placeholder="X₁"
-              @input="calcTg"
+              @change="calcTg"
             />
             <span class="arrow">→</span>
             <input
@@ -163,7 +164,7 @@
               v-model.number="point2X"
               class="input-small"
               placeholder="X₂"
-              @input="calcTg"
+              @change="calcTg"
             />
           </div>
         </div>
@@ -309,11 +310,11 @@ const generateFields = () => {
 };
 
 const fillPasteExample = () => {
-  pasteInput.value = `15, 0.0687
-    30, 0.0888
-    45, 0.0996
-    60, 0.1035
-    90, 0.109`;
+  pasteInput.value = `15    0,0687
+    30  0,0888
+    45  0,0996
+    60  0,1035
+    90  0,109`;
 };
 
 const parsePasteInput = () => {
@@ -424,22 +425,42 @@ const calcTrendline = (points) => {
 
 // 🔷 Перпендикуляры от точки на прямой
 const drawPerpendiculars = () => {
-  if (perpX.value === null || trendSlope.value === null) return;
+  // Number.isFinite() вернёт false для null, undefined, '', NaN, Infinity
+  if (!Number.isFinite(perpX.value)) {
+    perpX.value = null;
+    perpY.value = null;
+    updateChart();
+    return;
+  }
+
+  if (trendSlope.value === null) return;
+
   perpY.value = trendSlope.value * perpX.value + trendIntercept.value;
   updateChart();
 };
 
 // 📐 tg через 2 точки на прямой
 const calcTg = () => {
+  // Если значения не валидны — очищаем результаты И перерисовываем график (чтобы убрать маркеры)
   if (
-    point1X.value === null ||
-    point2X.value === null ||
+    !Number.isFinite(point1X.value) ||
+    !Number.isFinite(point2X.value) ||
     trendSlope.value === null
-  )
+  ) {
+    point1Y.value = null;
+    point2Y.value = null;
+    deltaX.value = null;
+    deltaY.value = null;
+    tgResult.value = null;
+    angleDeg.value = null;
+    updateChart(); // 🔥 Важно: перерисовать график, чтобы убрать старые маркеры
     return;
+  }
+
   if (point1X.value === point2X.value) {
     tgResult.value = null;
     angleDeg.value = null;
+    updateChart();
     return;
   }
 
@@ -450,6 +471,7 @@ const calcTg = () => {
   deltaY.value = point2Y.value - point1Y.value;
   tgResult.value = deltaY.value / deltaX.value;
   angleDeg.value = Math.atan(tgResult.value) * (180 / Math.PI);
+
   updateChart();
 };
 
@@ -606,11 +628,7 @@ const updateChart = () => {
     });
 
     // 🔷 Перпендикуляры
-    if (
-      perpX.value !== null &&
-      !isNaN(perpX.value) &&
-      trendSlope.value !== null
-    ) {
+    if (Number.isFinite(perpX.value) && trendSlope.value !== null) {
       const y = trend.slope * perpX.value + trend.intercept;
 
       // Вертикальная линия к оси X
@@ -657,8 +675,8 @@ const updateChart = () => {
 
     // 📐 Маркеры для tg
     if (
-      point1X.value !== null &&
-      point2X.value !== null &&
+      Number.isFinite(point1X.value) &&
+      Number.isFinite(point2X.value) &&
       point1X.value !== point2X.value &&
       trendSlope.value !== null
     ) {
