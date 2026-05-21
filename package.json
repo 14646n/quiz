@@ -1,0 +1,8 @@
+{
+  "name": "vue-quiz",
+  "version": "1.0.0",
+  "scripts": {
+    "deploy:prod": "git checkout main && firebase deploy --only hosting",
+    "deploy:dev": "git checkout develop && firebase deploy --only hosting --force"
+  }
+}
