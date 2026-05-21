@@ -75,6 +75,7 @@ const handleLogout = async () => {
 onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     currentUser.value = user;
+    console.log("App version:", new Date().toISOString());
   });
 });
 </script>
