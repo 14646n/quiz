@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
-  pull_request:
-    branches:
-      - main
 
 jobs:
   deploy:
@@ -22,5 +18,5 @@ jobs:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"
           firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
           projectId: education-service-f2f0e
-          channelId: live # 🔥 КЛЮЧЕВОЕ: деплой на живой сайт, а не превью
-          entryPoint: "." # если firebase.json в корне
+          channelId: live
+          entryPoint: "."
