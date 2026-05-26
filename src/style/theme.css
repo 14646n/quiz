@@ -1,0 +1,111 @@
+/* 🌙 ТЁМНАЯ ТЕМА ПО УМОЛЧАНИЮ (в :root) */
+:root {
+  /* Фон и текст */
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #282840;
+  --bg-card: #282840;
+  --bg-input: #1e1e2e;
+  --bg-hover: #313244;
+  
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted: #6c7086;
+  
+  /* Границы и акценты */
+  --border-color: #45475a;
+  --border-focus: #42b983;
+  --shadow: rgba(0, 0, 0, 0.3);
+  
+  /* Элементы кода и ввода */
+  --code-bg: #313244;
+  --input-bg: #1e1e2e;
+  --hover-bg: #313244;
+  
+  /* Статусы */
+  --success-bg: #1e4620;
+  --success-text: #90cdf4;
+  --error-bg: #461e1e;
+  --error-text: #fca5a5;
+  --warning-bg: #3d341b;
+  --warning-text: #f5e6a3;
+  --unanswered-bg: #3d341b;
+  --unanswered-border: #ffa726;
+}
+
+/* ☀️ СВЕТЛАЯ ТЕМА (при классе .light-mode) */
+.light-mode {
+  --bg-primary: #f5f7fa;
+  --bg-secondary: #f8f9fa;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #f5f5f5;
+  
+  --text-primary: #2c3e50;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  
+  --border-color: #eeeeee;
+  --border-focus: #42b983;
+  --shadow: rgba(0, 0, 0, 0.08);
+  
+  --code-bg: #eef;
+  --input-bg: #ffffff;
+  --hover-bg: #f5f5f5;
+  
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+  --warning-bg: #fff3cd;
+  --warning-text: #856404;
+  --unanswered-bg: #fff8e1;
+  --unanswered-border: #ffa726;
+}
+
+/* 🎯 Глобальные стили */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s, color 0.3s;
+  line-height: 1.5;
+}
+
+/* Ссылки */
+a {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+a:hover {
+  color: var(--border-focus);
+}
+
+/* Скроллбар */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Утилиты */
+.text-center { text-align: center; }
+.text-muted { color: var(--text-muted); }
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
