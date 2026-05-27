@@ -9,10 +9,33 @@
 
     <!-- Ввод JSON -->
     <div class="json-input">
-      <textarea
-        v-model="jsonInput"
-        placeholder='[{"question": "Столица России?", "type": "text", "correct_answer": "Москва"}]'
-      ></textarea>
+      <div class="json-input-header">
+        <textarea
+          v-model="jsonInput"
+          placeholder='[{"question": "Столица России?", "type": "text", "correct_answer": "Москва"}]'
+        ></textarea>
+
+        <!-- Кнопки управления полем -->
+        <div class="json-actions">
+          <button
+            @click="clearJsonInput"
+            class="json-action-btn"
+            title="Очистить поле"
+            :disabled="!jsonInput.trim()"
+          >
+            🗑️ Очистить
+          </button>
+          <button
+            @click="copyJsonInput"
+            class="json-action-btn"
+            title="Копировать в буфер"
+            :disabled="!jsonInput.trim()"
+          >
+            {{ copied ? "✓ Скопировано!" : "📋 Копировать" }}
+          </button>
+        </div>
+      </div>
+
       <div class="btn-row">
         <button @click="loadFromJson" class="btn btn-primary">
           🚀 Загрузить тест
@@ -483,7 +506,37 @@ const repeatSource = ref(null);
 // Пост-тестовое предложение повторить
 const showPostTestRepeat = ref(false);
 const lastTestAnswers = ref([]);
+// Состояние для обратной связи при копировании
+const copied = ref(false);
+// 🔧 Очистка поля JSON
+const clearJsonInput = () => {
+  jsonInput.value = "";
+};
+// 🔧 Копирование содержимого в буфер обмена
+const copyJsonInput = async () => {
+  if (!jsonInput.value.trim()) return;
 
+  try {
+    await navigator.clipboard.writeText(jsonInput.value);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch (err) {
+    // Fallback для старых браузеров
+    const textarea = document.createElement("textarea");
+    textarea.value = jsonInput.value;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  }
+};
 // === Утилиты ===
 const truncate = (str, len) =>
   str.length > len ? str.substring(0, len) + "..." : str;
@@ -1967,5 +2020,62 @@ onMounted(() => {
 }
 .matching-clear:hover {
   opacity: 1;
+}
+/* === Управление полем JSON === */
+.json-input-header {
+  position: relative;
+}
+
+.json-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.json-action-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.json-action-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.json-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.json-action-btn:nth-child(2):hover:not(:disabled) {
+  background: #42b983;
+  color: white;
+  border-color: #42b983;
+}
+
+/* Анимация подтверждения копирования */
+@keyframes pulse-success {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.json-action-btn.copied {
+  animation: pulse-success 0.3s ease;
 }
 </style>
