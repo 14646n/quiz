@@ -53,7 +53,7 @@
         <!-- Варианты ответа: множественный выбор (один правильный) -->
         <template v-if="q.type === 'multiple'">
           <label
-            v-for="key in optionKeys"
+            v-for="key in getOptionKeys(q)"
             :key="key"
             class="opt"
             :class="{
@@ -75,7 +75,7 @@
         <!-- Варианты ответа: множественный выбор (несколько правильных) -->
         <template v-else-if="q.type === 'checkbox'">
           <label
-            v-for="key in optionKeys"
+            v-for="key in getOptionKeys(q)"
             :key="key"
             class="opt"
             :class="{
@@ -569,6 +569,22 @@ const correct = computed(() => {
     return score + (answer === q.correct_answer ? 1 : 0);
   }, 0);
 });
+// === Получить доступные ключи вариантов ответа из вопроса ===
+const getOptionKeys = (question) => {
+  // Для checkbox и multiple собираем все value_N, которые есть в вопросе
+  if (question.type === "checkbox" || question.type === "multiple") {
+    const keys = [];
+    let i = 1;
+    // Собираем ключи, пока они существуют в объекте вопроса (макс. 10)
+    while (question[`value_${i}`] !== undefined && i <= 10) {
+      keys.push(`value_${i}`);
+      i++;
+    }
+    return keys;
+  }
+  // Для остальных типов возвращаем стандартные 4 ключа
+  return optionKeys;
+};
 // === Функция для выбора соответствия ===
 const selectMatching = (questionIndex, rightValue) => {
   if (!answers.value[questionIndex]) {
