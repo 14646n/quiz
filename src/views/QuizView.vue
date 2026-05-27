@@ -131,13 +131,7 @@
 
                 <!-- ✅ Гарантируем реактивность объекта answers[i] -->
                 <select
-                  :model-value="answers[i]?.[leftItem] || ''"
-                  @update:model-value="
-                    (val) => {
-                      answers[i] = answers[i] || {};
-                      answers[i][leftItem] = val;
-                    }
-                  "
+                  v-model="answers[i][leftItem]"
                   :disabled="done"
                   class="matching-select"
                 >
@@ -620,12 +614,12 @@ const isAnswered = (index) => {
     return a === "true" || a === "false";
   }
   if (q.type === "matching") {
-    // Проверяем, что все элементы из leftColumn имеют выбранные соответствия
     if (!a || typeof a !== "object") return false;
     const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
     return leftColumn.every((left) => {
       const val = a[left];
-      return val !== null && val !== undefined && String(val).trim() !== "";
+      // ✅ Пустая строка "" = не отвечено
+      return val !== "" && val !== null && val !== undefined;
     });
   }
   // multiple (по умолчанию)
@@ -707,7 +701,15 @@ const loadFromJson = () => {
     answers.value = questions.value.map((q) => {
       if (q.type === "text") return "";
       if (q.type === "checkbox") return [];
-      if (q.type === "matching") return {}; // ✅ ПУСТОЙ ОБЪЕКТ для соответствий!
+      if (q.type === "matching") {
+        // ✅ Создаём объект с ключами из leftColumn, чтобы v-model работал
+        const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+        const initial = {};
+        for (const left of leftColumn) {
+          initial[left] = ""; // Пустая строка = "не выбрано"
+        }
+        return initial;
+      } // ✅ ПУСТОЙ ОБЪЕКТ для соответствий!
       if (q.type === "boolean") return ""; // ✅ ПУСТАЯ СТРОКА для boolean
       return null; // для multiple
     });
@@ -1006,7 +1008,14 @@ const startPostTestRepeat = (mode) => {
   answers.value = questionsToRepeat.map((q) => {
     if (q.type === "text") return "";
     if (q.type === "checkbox") return [];
-    if (q.type === "matching") return {};
+    if (q.type === "matching") {
+      const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+      const initial = {};
+      for (const left of leftColumn) {
+        initial[left] = "";
+      }
+      return initial;
+    }
     if (q.type === "boolean") return "";
     return null;
   });
@@ -1102,7 +1111,14 @@ const startRepeat = () => {
   answers.value = questionsToRepeat.map((q) => {
     if (q.type === "text") return "";
     if (q.type === "checkbox") return [];
-    if (q.type === "matching") return {};
+    if (q.type === "matching") {
+      const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+      const initial = {};
+      for (const left of leftColumn) {
+        initial[left] = "";
+      }
+      return initial;
+    }
     if (q.type === "boolean") return "";
     return null;
   });
