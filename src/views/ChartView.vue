@@ -323,8 +323,7 @@ const parsePasteInput = () => {
 
   let points = [];
 
-  // 🔧 Шаг 1: Предварительная обработка — заменяем запятые на точки ВЕСЬ текст
-  // Это нужно для чисел вида "7,389446" (европейский формат)
+  // Заменяем запятые на точки для чисел
   const normalizedText = text.replace(/,/g, ".");
 
   try {
@@ -339,7 +338,6 @@ const parsePasteInput = () => {
   } catch {
     // Fallback: построчный парсинг
     normalizedText.split("\n").forEach((line) => {
-      // Разделяем по табуляции ИЛИ 2+ пробелам ИЛИ запятой (после замены на точку)
       const parts = line
         .split(/[\t]| {2,}/)
         .map((p) => p.trim())
@@ -425,7 +423,6 @@ const calcTrendline = (points) => {
 
 // 🔷 Перпендикуляры от точки на прямой
 const drawPerpendiculars = () => {
-  // Number.isFinite() вернёт false для null, undefined, '', NaN, Infinity
   if (!Number.isFinite(perpX.value)) {
     perpX.value = null;
     perpY.value = null;
@@ -441,7 +438,6 @@ const drawPerpendiculars = () => {
 
 // 📐 tg через 2 точки на прямой
 const calcTg = () => {
-  // Если значения не валидны — очищаем результаты И перерисовываем график (чтобы убрать маркеры)
   if (
     !Number.isFinite(point1X.value) ||
     !Number.isFinite(point2X.value) ||
@@ -453,7 +449,7 @@ const calcTg = () => {
     deltaY.value = null;
     tgResult.value = null;
     angleDeg.value = null;
-    updateChart(); // 🔥 Важно: перерисовать график, чтобы убрать старые маркеры
+    updateChart();
     return;
   }
 
@@ -575,9 +571,8 @@ const updateChart = () => {
   }
   // 📊 ГИСТОГРАММА
   else if (chartType.value === "bar") {
-    // Для гистограммы X должны быть строками (категориями)
     const barData = points.map((p, i) => ({
-      x: `Т${i + 1}: ${formatDisplay(p.x)}`, // Конвертируем число в строку-метку
+      x: `Т${i + 1}: ${formatDisplay(p.x)}`,
       y: p.y,
     }));
 
@@ -709,24 +704,42 @@ const updateChart = () => {
       scales: {
         x: {
           type: chartType.value === "bar" ? "category" : "linear",
-          title: { display: true, text: "Ось X" },
-          grid: { color: "#eef2f6" },
+          title: {
+            display: true,
+            text: "Ось X",
+            color: "var(--text-secondary)",
+          },
+          ticks: { color: "var(--text-secondary)" },
+          grid: { color: "var(--border-color)" },
           beginAtZero: chartType.value === "scatter",
         },
         y: {
           type: "linear",
-          title: { display: true, text: "Ось Y" },
-          grid: { color: "#eef2f6" },
+          title: {
+            display: true,
+            text: "Ось Y",
+            color: "var(--text-secondary)",
+          },
+          ticks: { color: "var(--text-secondary)" },
+          grid: { color: "var(--border-color)" },
           beginAtZero: chartType.value === "bar",
         },
       },
       plugins: {
         legend: {
           position: "top",
-          labels: { usePointStyle: true, padding: 20 },
+          labels: {
+            usePointStyle: true,
+            padding: 20,
+            color: "var(--text-primary)",
+          },
         },
         tooltip: {
-          backgroundColor: "rgba(0,0,0,0.85)",
+          backgroundColor: "rgba(30, 30, 46, 0.95)",
+          titleColor: "#fff",
+          bodyColor: "#cdd6f4",
+          borderColor: "var(--border-color)",
+          borderWidth: 1,
           padding: 12,
           titleFont: { size: 13, weight: "bold" },
           bodyFont: { size: 13 },
@@ -771,63 +784,77 @@ onUnmounted(() => {
 
 <style scoped>
 .card {
-  background: #fff;
+  background: var(--bg-card);
   padding: 20px;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  font-family: system-ui, sans-serif;
+  box-shadow: 0 4px 12px var(--shadow);
+  color: var(--text-primary);
+  transition:
+    background-color 0.3s,
+    color 0.3s;
 }
+
 .input-toggle {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
 }
+
 .toggle-btn {
   flex: 1;
   padding: 10px;
-  border: 2px solid #e0e0e0;
-  background: #fff;
+  border: 2px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
   transition: 0.2s;
 }
+
 .toggle-btn:hover {
-  border-color: #1f77b4;
-  background: #f0f7ff;
+  border-color: var(--border-focus);
+  background: var(--hover-bg);
 }
+
 .toggle-btn.active {
-  border-color: #1f77b4;
-  background: #1f77b4;
+  border-color: #42b983;
+  background: #42b983;
   color: #fff;
 }
 
 .step {
   margin-bottom: 20px;
   padding: 15px;
-  background: #f8f9fa;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
 }
+
 .step label {
   display: block;
   margin-bottom: 10px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
+
 .step-controls {
   display: flex;
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
+
 .input-small {
   width: 80px;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
+
 .points-list {
   display: flex;
   flex-direction: column;
@@ -836,40 +863,49 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 5px;
 }
+
 .point-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
+
 .point-num {
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
   font-size: 0.9em;
   min-width: 40px;
 }
+
 .input-coord {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   text-align: center;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
+
 .paste-area {
   width: 100%;
   padding: 10px;
   font-family: monospace;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   resize: vertical;
   box-sizing: border-box;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
+
 .paste-area:focus {
   outline: none;
-  border-color: #1f77b4;
+  border-color: var(--border-focus);
 }
 
 .paste-buttons {
@@ -885,6 +921,7 @@ onUnmounted(() => {
   margin: 20px 0;
   flex-wrap: wrap;
 }
+
 .btn {
   padding: 10px 20px;
   border: none;
@@ -893,64 +930,84 @@ onUnmounted(() => {
   font-weight: 500;
   font-size: 14px;
   transition: 0.2s;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
+
+.btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--border-focus);
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
 .btn-primary {
-  background: #1f77b4;
+  background: #42b983;
   color: #fff;
+  border-color: #42b983;
 }
+
 .btn-primary:hover:not(:disabled) {
-  background: #1a669b;
+  background: #3aa876;
 }
+
 .btn-outline {
   background: transparent;
-  border: 1px solid #6c757d;
-  color: #6c757d;
+  border: 1px solid var(--text-secondary);
+  color: var(--text-secondary);
 }
+
 .btn-outline:hover {
-  background: #6c757d;
-  color: #fff;
+  background: var(--text-secondary);
+  color: var(--bg-primary);
 }
 
 .chart-type-selector {
-  background: #f8f9fa;
+  background: var(--bg-secondary);
   padding: 15px;
   border-radius: 8px;
   margin-bottom: 20px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
 }
+
 .chart-type-selector label {
   display: block;
   margin-bottom: 10px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
+
 .type-buttons {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
+
 .type-btn {
   padding: 10px 20px;
-  border: 2px solid #ddd;
+  border: 2px solid var(--border-color);
   border-radius: 8px;
-  background: #fff;
+  background: var(--bg-card);
+  color: var(--text-primary);
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
 }
+
 .type-btn:hover {
-  border-color: #1f77b4;
-  background: #f0f7ff;
+  border-color: var(--border-focus);
+  background: var(--hover-bg);
 }
+
 .type-btn.active {
-  border-color: #1f77b4;
-  background: #1f77b4;
+  border-color: #42b983;
+  background: #42b983;
   color: #fff;
-  box-shadow: 0 2px 8px rgba(31, 119, 180, 0.3);
+  box-shadow: 0 2px 8px rgba(66, 185, 131, 0.3);
 }
 
 .chart-box {
@@ -958,76 +1015,85 @@ onUnmounted(() => {
   height: 500px;
   width: 100%;
   margin: 20px 0;
-  background: #fff;
-  border: 1px solid #eef2f6;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
 .analysis-panel {
-  background: #f0f7ff;
-  border: 1px solid #b3d4ff;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   padding: 15px;
   border-radius: 8px;
   margin-bottom: 20px;
 }
+
 .analysis-panel h3 {
   margin: 0 0 10px 0;
   font-size: 1.1em;
-  color: #0056b3;
+  color: var(--text-primary);
 }
 
 .scatter-tools {
-  background: #fff;
+  background: var(--bg-card);
   padding: 12px;
   border-radius: 6px;
   border-left: 4px solid #ff7f0e;
   margin-bottom: 15px;
 }
+
 .tool-section {
   margin-bottom: 12px;
 }
+
 .tool-section label {
   display: block;
   margin-bottom: 6px;
   font-weight: 500;
   font-size: 0.95em;
-  color: #333;
+  color: var(--text-primary);
 }
+
 .tool-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
+
 .tool-row .arrow {
-  color: #666;
+  color: var(--text-secondary);
   font-weight: bold;
 }
+
 .coord-hint {
   font-size: 0.9em;
-  color: #1f77b4;
+  color: #42b983;
   font-weight: 500;
 }
 
 .perp-results {
-  background: #f8f9fa;
+  background: var(--bg-input);
   padding: 10px;
   border-radius: 4px;
   margin-top: 10px;
 }
+
 .result-row {
   margin: 6px 0;
   font-size: 0.95em;
-  color: #333;
+  color: var(--text-primary);
 }
+
 .result-row.small {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-secondary);
   margin-top: 8px;
 }
+
 .highlight {
   font-weight: bold;
-  color: #0056b3;
+  color: #42b983;
   margin-left: 5px;
 }
 
@@ -1036,30 +1102,52 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 10px;
 }
+
 .checkbox-label {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   font-size: 0.95em;
+  color: var(--text-primary);
 }
+
 .tangent-control {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
+
 .tangent-control select {
   padding: 6px;
   border-radius: 4px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   min-width: 180px;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
+
 .tangent-results {
   margin-top: 15px;
-  background: #fff;
+  background: var(--bg-card);
   padding: 12px;
   border-radius: 6px;
   border-left: 4px solid #9467bd;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .chart-box {
+    height: 400px;
+  }
+
+  .type-buttons {
+    flex-direction: column;
+  }
+
+  .type-btn {
+    width: 100%;
+  }
 }
 </style>
