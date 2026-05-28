@@ -206,17 +206,17 @@
           </div>
         </template>
 
-        <!-- Результат после завершения -->
+        <!-- Блок результата после завершения -->
         <div v-if="done" class="res">
           <span v-if="isAnswerCorrect(i)" class="ok">✓ Верно</span>
           <span v-else class="err">
             ✗ Неверно.
-            <template v-if="q.type === 'text'">
-              Правильный: <strong>{{ q.correct_answer }}</strong>
-            </template>
-            <template v-else> Правильный: {{ q[q.correct_answer] }} </template>
+
+            <!-- ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ -->
+            Правильный: <strong>{{ formatCorrectAnswer(q) }}</strong>
           </span>
-          <!-- Показываем предупреждение и при верном ответе -->
+
+          <!-- Предупреждение и при верном ответе -->
           <span
             v-if="checkTextAnswer(q, answers[i]).warning"
             class="warning-note"
@@ -335,6 +335,7 @@
     </div>
 
     <!-- 🔍 Модалка с деталями теста -->
+    <!-- 🔍 Модалка с деталями теста -->
     <transition name="fade">
       <div
         v-if="showDetails && selectedResult"
@@ -346,6 +347,7 @@
             <h4>📋 Детали прохождения</h4>
             <button @click="closeDetails" class="modal-close">&times;</button>
           </div>
+
           <div class="modal-body">
             <div class="modal-summary">
               Результат:
@@ -356,12 +358,57 @@
               <br />
               <small>{{ formatDate(selectedResult.timestamp) }}</small>
             </div>
+
+            <!-- 🔁 БЛОК ОТВЕТА С СОРТИРОВКОЙ И ПРАВИЛЬНЫМИ ОТВЕТАМИ -->
             <div
               v-for="(ans, i) in selectedResult.answers"
               :key="i"
               class="answer-item"
             >
               <div class="answer-question">{{ i + 1 }}. {{ ans.q }}</div>
+
+              <!-- ✅ ВАРИАНТЫ ОТВЕТА (ОТСОРТИРОВАННЫЕ: 1, 2, 3, 4) -->
+              <div
+                v-if="
+                  ans.options &&
+                  (ans.type === 'multiple' || ans.type === 'checkbox')
+                "
+                class="answer-options-list"
+              >
+                <div
+                  v-for="[optKey, optText] in getSortedOptions(ans.options)"
+                  :key="optKey"
+                  class="option-item"
+                  :class="{
+                    'option-correct':
+                      ans.type === 'multiple' &&
+                      optKey === ans.correctAnswerKey,
+                    'option-correct':
+                      ans.type === 'checkbox' &&
+                      Array.isArray(ans.correctAnswer) &&
+                      ans.correctAnswer.includes(optKey),
+                  }"
+                >
+                  <span class="option-key"
+                    >{{ optKey.replace("value_", "") }})</span
+                  >
+                  <span class="option-text">{{ optText }}</span>
+                  <!-- Галочка правильного ответа -->
+                  <span
+                    v-if="
+                      (ans.type === 'multiple' &&
+                        optKey === ans.correctAnswerKey) ||
+                      (ans.type === 'checkbox' &&
+                        Array.isArray(ans.correctAnswer) &&
+                        ans.correctAnswer.includes(optKey))
+                    "
+                    class="correct-mark"
+                    >✓</span
+                  >
+                </div>
+              </div>
+
+              <!-- 👤 ВАШ ОТВЕТ -->
               <div
                 class="answer-row"
                 :class="{
@@ -371,7 +418,31 @@
                 }"
               >
                 <span class="answer-label">Ваш ответ:</span>
-                <span class="answer-value">{{ ans.userAnswer || "—" }}</span>
+                <span class="answer-value">
+                  <!-- Matching -->
+                  <template v-if="ans.type === 'matching' && ans.userAnswer">
+                    <ul class="matching-list-view">
+                      <li v-for="(val, key) in ans.userAnswer" :key="key">
+                        <strong>{{ key }}</strong> → {{ val }}
+                      </li>
+                    </ul>
+                  </template>
+                  <!-- Checkbox (массив) -->
+                  <template v-else-if="Array.isArray(ans.userAnswer)">
+                    {{
+                      ans.userAnswer.length > 0
+                        ? ans.userAnswer
+                            .map((k) => ans.options?.[k] || k)
+                            .join(", ")
+                        : "—"
+                    }}
+                  </template>
+                  <!-- Multiple/Boolean/Text -->
+                  <template v-else>
+                    {{ ans.userAnswer || "—" }}
+                  </template>
+                </span>
+                <!-- Статус ответа -->
                 <span v-if="ans.isCorrect && !ans.warning" class="answer-mark"
                   >✓</span
                 >
@@ -380,12 +451,70 @@
                 >
                 <span v-if="!ans.isCorrect" class="answer-mark">✗</span>
               </div>
+
+              <!-- ⚠️ Предупреждение -->
               <div v-if="ans.warning" class="answer-warning-detail">
                 {{ ans.warning }}
               </div>
+
+              <!-- ✅ ПРАВИЛЬНЫЙ ОТВЕТ -->
               <div v-if="!ans.isCorrect" class="answer-row correct">
                 <span class="answer-label">Правильный:</span>
-                <span class="answer-value">{{ ans.correctAnswer }}</span>
+                <span class="answer-value">
+                  <!-- CHECKBOX -->
+                  <template v-if="ans.type === 'checkbox'">
+                    <span v-if="Array.isArray(ans.correctAnswer)">
+                      {{
+                        ans.correctAnswer
+                          .map((key) => {
+                            // Пробуем найти текст в options, иначе показываем ключ
+                            const text = ans.options?.[key];
+                            return text || key;
+                          })
+                          .filter((t) => t && String(t).trim())
+                          .join(", ") || "—"
+                      }}
+                    </span>
+                    <span v-else>
+                      {{ ans.correctAnswer || "—" }}
+                    </span>
+                  </template>
+
+                  <!-- MATCHING -->
+                  <template v-else-if="ans.type === 'matching'">
+                    <ul
+                      class="matching-list-view"
+                      v-if="
+                        ans.correctAnswer &&
+                        typeof ans.correctAnswer === 'object'
+                      "
+                    >
+                      <li v-for="(val, key) in ans.correctAnswer" :key="key">
+                        <strong>{{ key }}</strong> → {{ val }}
+                      </li>
+                    </ul>
+                    <span v-else>—</span>
+                  </template>
+
+                  <!-- MULTIPLE -->
+                  <template v-else-if="ans.type === 'multiple'">
+                    {{
+                      ans.options?.[ans.correctAnswer] ||
+                      ans.correctAnswer ||
+                      "—"
+                    }}
+                  </template>
+
+                  <!-- BOOLEAN -->
+                  <template v-else-if="ans.type === 'boolean'">
+                    {{ ans.correctAnswer === "true" ? "✅ Истина" : "❌ Ложь" }}
+                  </template>
+
+                  <!-- TEXT -->
+                  <template v-else>
+                    {{ ans.correctAnswer || "—" }}
+                  </template>
+                </span>
               </div>
             </div>
           </div>
@@ -512,6 +641,55 @@ const copied = ref(false);
 const clearJsonInput = () => {
   jsonInput.value = "";
 };
+// 🔧 Функция "лечения" старых данных
+const normalizeHistoryItem = (item) => {
+  if (!item.answers) return item;
+
+  const normalizedAnswers = item.answers.map((ans) => {
+    // 1. Определяем тип вопроса
+    if (!ans.type) {
+      if (
+        ans.options?.pairs ||
+        (typeof ans.correctAnswer === "object" && ans.correctAnswer !== null)
+      ) {
+        ans.type = "matching";
+      } else if (Array.isArray(ans.correctAnswer)) {
+        ans.type = "checkbox";
+      } else if (
+        ans.correctAnswer === "true" ||
+        ans.correctAnswer === "false"
+      ) {
+        ans.type = "boolean";
+      } else if (ans.options?.value_1) {
+        ans.type = "multiple";
+      } else {
+        ans.type = "text";
+      }
+    }
+
+    // 2. Для checkbox/matching убеждаемся что options есть
+    if (ans.type === "checkbox" && !ans.options) {
+      ans.options = {};
+    }
+
+    if (ans.type === "matching") {
+      if (!ans.options) ans.options = {};
+      if (!ans.options.pairs && ans.correctAnswer) {
+        ans.options.pairs = ans.correctAnswer;
+      }
+      if (!ans.options.leftColumn && ans.options.pairs) {
+        ans.options.leftColumn = Object.keys(ans.options.pairs);
+      }
+      if (!ans.options.rightColumn && ans.options.pairs) {
+        ans.options.rightColumn = Object.values(ans.options.pairs);
+      }
+    }
+
+    return ans;
+  });
+
+  return { ...item, answers: normalizedAnswers };
+};
 // 🔧 Копирование содержимого в буфер обмена
 const copyJsonInput = async () => {
   if (!jsonInput.value.trim()) return;
@@ -585,7 +763,53 @@ const checkTextAnswer = (question, userAnswer) => {
   if (question.type !== "text") return { isCorrect: false, warning: null };
   return checkSpecialCase(question.correct_answer, userAnswer);
 };
+// 🔧 Функция для красивого отображения правильного ответа
+const formatCorrectAnswer = (item) => {
+  console.log("🔍 formatCorrectAnswer:", {
+    type: item.type,
+    correctAnswer: item.correctAnswer,
+    correctAnswerKey: item.correctAnswerKey,
+    options: item.options,
+    hasOptions: !!item.options,
+  });
 
+  const correctVal = item.correctAnswer || item.correct_answer;
+
+  if (correctVal === undefined || correctVal === null) return "—";
+
+  // --- ЧЕКБОКСЫ (несколько правильных) ---
+  if (item.type === "checkbox" && Array.isArray(correctVal)) {
+    const source = item.options || item;
+    const answers = correctVal
+      .map((key) => {
+        const text = source[key];
+        return text ? `${text}` : key;
+      })
+      .filter(Boolean);
+
+    return answers.length > 0 ? answers.join(", ") : "—";
+  }
+
+  // --- MATCHING (соответствия) ---
+  if (item.type === "matching" && typeof correctVal === "object") {
+    const source = item.options || item;
+    const pairs = correctVal;
+    return Object.entries(pairs)
+      .map(([key, val]) => `${key} → ${source[val] || val}`)
+      .join("; ");
+  }
+
+  // --- MULTIPLE/BOOLEAN (один ответ) ---
+  const source = item.options || item;
+
+  // Если correctVal - это ключ (value_1, value_2)
+  if (typeof correctVal === "string" && correctVal.startsWith("value_")) {
+    return source[correctVal] || correctVal;
+  }
+
+  // Если correctVal - это уже текст
+  return correctVal;
+};
 // === Вычисляемые свойства ===
 const unansweredCount = computed(
   () => questions.value.filter((_, i) => !isAnswered(i)).length,
@@ -624,20 +848,28 @@ const correct = computed(() => {
 });
 // === Получить доступные ключи вариантов ответа из вопроса ===
 const getOptionKeys = (question) => {
-  // Для checkbox и multiple собираем все value_N, которые есть в вопросе
+  // ✅ ЗАЩИТА ОТ NULL/UNDEFINED
+  if (!question || typeof question !== "object") {
+    return optionKeys;
+  }
+
   if (question.type === "checkbox" || question.type === "multiple") {
     const keys = [];
     let i = 1;
-    // Собираем ключи, пока они существуют в объекте вопроса (макс. 10)
-    while (question[`value_${i}`] !== undefined && i <= 10) {
+    // Проверяем что question существует и имеет свойство
+    while (
+      question[`value_${i}`] !== undefined &&
+      question[`value_${i}`] !== null &&
+      i <= 10
+    ) {
       keys.push(`value_${i}`);
       i++;
     }
-    return keys;
+    return keys.length > 0 ? keys : optionKeys;
   }
-  // Для остальных типов возвращаем стандартные 4 ключа
   return optionKeys;
 };
+
 // === Функция для выбора соответствия ===
 const selectMatching = (questionIndex, rightValue) => {
   if (!answers.value[questionIndex]) {
@@ -683,11 +915,12 @@ const isAnswered = (index) => {
     return a === "true" || a === "false";
   }
   if (q.type === "matching") {
+    // ✅ ПРОВЕРКА: все ли поля заполнены (возвращаем boolean!)
     if (!a || typeof a !== "object") return false;
-    const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+    const leftColumn = q.leftColumn || (q.pairs ? Object.keys(q.pairs) : []);
+    if (!leftColumn || !Array.isArray(leftColumn)) return false;
     return leftColumn.every((left) => {
       const val = a[left];
-      // ✅ Пустая строка "" = не отвечено
       return val !== "" && val !== null && val !== undefined;
     });
   }
@@ -709,7 +942,25 @@ const isCheckboxAnswerCorrect = (userAnswer, correctAnswer) => {
     userSorted.every((val, idx) => val === correctSorted[idx])
   );
 };
+// 🔧 Получение отсортированных опций для отображения
+const getSortedOptions = (options) => {
+  // Если options null/undefined - возвращаем пустой массив
+  if (!options || typeof options !== "object") {
+    console.warn("⚠️ getSortedOptions: options is null/undefined");
+    return [];
+  }
 
+  const result = Object.entries(options)
+    .filter(([key]) => typeof key === "string" && key.startsWith("value_"))
+    .sort(([keyA], [keyB]) => {
+      const numA = parseInt(keyA.replace("value_", ""), 10);
+      const numB = parseInt(keyB.replace("value_", ""), 10);
+      return numA - numB;
+    });
+
+  console.log("📋 getSortedOptions result:", result);
+  return result;
+};
 const isAnswerCorrect = (index) => {
   const q = questions.value[index];
   const a = answers.value[index];
@@ -869,21 +1120,32 @@ const submit = async () => {
       isCorrect = a === q.correct_answer;
     } else if (q.type === "checkbox") {
       isCorrect = isCheckboxAnswerCorrect(a, q.correct_answer);
+    } else if (q.type === "matching") {
+      isCorrect = isMatchingCorrect(a, q.pairs);
     } else {
       // multiple
       isCorrect = a === q.correct_answer;
     }
 
-    // 🔧 Формируем options
-    const options =
-      q.type !== "text" && q.type !== "boolean"
-        ? [
-            q.value_1 ?? null,
-            q.value_2 ?? null,
-            q.value_3 ?? null,
-            q.value_4 ?? null,
-          ].filter((v) => v !== undefined)
-        : null;
+    // 🔧 СОХРАНЯЕМ ВСЕ ВАРИАНТЫ ОТВЕТА
+    const options = {};
+    if (q.type === "multiple" || q.type === "checkbox") {
+      // Сохраняем все value_N
+      for (let j = 1; j <= 10; j++) {
+        const key = `value_${j}`;
+        if (q[key] !== undefined) {
+          options[key] = q[key];
+        }
+      }
+    } else if (q.type === "boolean") {
+      options.value_true = "Истина";
+      options.value_false = "Ложь";
+    } else if (q.type === "matching") {
+      // Сохраняем ВСЕ данные для matching
+      options.pairs = q.pairs || {};
+      options.leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+      options.rightColumn = q.rightColumn || [];
+    }
 
     return sanitizeForFirestore({
       q: q.question,
@@ -897,25 +1159,32 @@ const submit = async () => {
               : []
             : q.type === "boolean"
               ? a
-              : (q[a] ?? a),
+              : q.type === "matching"
+                ? a
+                : (q[a] ?? a),
+      // ✅ ИСПРАВЛЕНО:
       correctAnswer:
         q.type === "text"
           ? q.correct_answer
           : q.type === "checkbox"
-            ? q.correct_answer
+            ? q.correct_answer // ← Сохраняем массив как есть!
             : q.type === "boolean"
               ? q.correct_answer
-              : (q[q.correct_answer] ?? null),
+              : q.type === "matching"
+                ? q.pairs
+                : (q[q.correct_answer] ?? null),
       correctAnswerKey:
         q.type === "multiple"
           ? q.correct_answer
           : q.type === "checkbox"
-            ? q.correct_answer
-            : null,
+            ? q.correct_answer // ← Для checkbox тоже сохраняем массив
+            : q.type === "matching"
+              ? "pairs"
+              : null,
       isCorrect,
       warning:
         q.type === "text" ? (checkTextAnswer(q, a).warning ?? null) : null,
-      options: options?.length ? options : null,
+      options: Object.keys(options).length ? options : null,
     });
   });
 
@@ -944,7 +1213,6 @@ const submit = async () => {
 
 // === Завершение теста с неотвеченными вопросами ===
 const submitIncomplete = async () => {
-  // Показываем предупреждение если много пропущено
   if (unansweredCount.value > questions.value.length / 2) {
     const confirmSkip = confirm(
       `⚠️ Вы пропустили ${unansweredCount.value} из ${questions.value.length} вопросов.\n\n` +
@@ -956,55 +1224,85 @@ const submitIncomplete = async () => {
 
   done.value = true;
 
-  // Формируем данные (неотвеченные = неправильные)
   const processedAnswers = answers.value.map((a, i) => {
     const q = questions.value[i];
 
-    // Проверка: ответ есть И правильный
     const isAnswered =
       q.type === "text"
         ? a !== null && a !== undefined && String(a).trim() !== ""
-        : a !== null && a !== undefined;
+        : q.type === "matching"
+          ? a &&
+            typeof a === "object" &&
+            Object.values(a).every((v) => v !== "" && v !== null)
+          : a !== null && a !== undefined;
 
     const isCorrect = isAnswered
       ? q.type === "text"
         ? checkTextAnswer(q, a).isCorrect
-        : a === q.correct_answer
-      : false; // ← Неотвеченные = неправильные
+        : q.type === "checkbox"
+          ? isCheckboxAnswerCorrect(a, q.correct_answer)
+          : q.type === "matching"
+            ? isMatchingCorrect(a, q.pairs)
+            : a === q.correct_answer
+      : false;
 
-    // 🔧 Формируем options и сохраняем КЛЮЧ правильного ответа
-    const options =
-      q.type !== "text"
-        ? [
-            q.value_1 ?? null,
-            q.value_2 ?? null,
-            q.value_3 ?? null,
-            q.value_4 ?? null,
-          ].filter((v) => v !== undefined)
-        : null;
+    // 🔧 СОХРАНЯЕМ ВСЕ ВАРИАНТЫ
+    const options = {};
+    if (q.type === "multiple" || q.type === "checkbox") {
+      for (let j = 1; j <= 10; j++) {
+        const key = `value_${j}`;
+        if (q[key] !== undefined) {
+          options[key] = q[key];
+        }
+      }
+    } else if (q.type === "boolean") {
+      options.value_true = "Истина";
+      options.value_false = "Ложь";
+    } else if (q.type === "matching") {
+      options.pairs = q.pairs || {};
+      options.leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+      options.rightColumn = q.rightColumn || [];
+    }
 
     return sanitizeForFirestore({
       q: q.question,
       type: q.type,
-      userAnswer: isAnswered ? (q.type === "text" ? a : (q[a] ?? a)) : null,
+      userAnswer: isAnswered
+        ? q.type === "text"
+          ? a
+          : q.type === "matching"
+            ? a
+            : (q[a] ?? a)
+        : null,
+      // ✅ ИСПРАВЛЕНО:
       correctAnswer:
-        q.type === "text" ? q.correct_answer : (q[q.correct_answer] ?? null),
-      correctAnswerKey: q.type !== "text" ? q.correct_answer : null,
+        q.type === "text"
+          ? q.correct_answer
+          : q.type === "checkbox"
+            ? q.correct_answer // ← Сохраняем массив!
+            : q.type === "matching"
+              ? q.pairs
+              : (q[q.correct_answer] ?? null),
+      correctAnswerKey:
+        q.type === "matching"
+          ? "pairs"
+          : q.type !== "text"
+            ? q.correct_answer
+            : null,
       isCorrect,
       warning:
         q.type === "text" && isAnswered
           ? (checkTextAnswer(q, a).warning ?? null)
           : null,
-      options: options?.length ? options : null,
-      skipped: !isAnswered, // ← Флаг "пропущено"
+      options: Object.keys(options).length ? options : null,
+      skipped: !isAnswered,
     });
   });
 
-  // Сохранение если авторизован
   if (user.value) {
     const resultData = sanitizeForFirestore({
       userId: user.value.uid,
-      score: correct.value, // считаем только правильные
+      score: correct.value,
       total: questions.value.length,
       quizTitle: questions.value[0]?.question?.substring(0, 50) + "...",
       answers: processedAnswers,
@@ -1020,11 +1318,8 @@ const submitIncomplete = async () => {
     }
   }
 
-  // Показываем предложение повторить
   lastTestAnswers.value = processedAnswers;
   showPostTestRepeat.value = true;
-
-  // Прокрутка к результатам
   window.scrollTo({ top: 0, behavior: "auto" });
 };
 // === Пост-тестовое повторение ===
@@ -1043,19 +1338,30 @@ const startPostTestRepeat = (mode) => {
   const buildQuestion = (ans) => {
     const base = {
       question: ans.q,
-      type: ans.type,
+      type: ans.type || "text",
       correct_answer: ans.correctAnswerKey ?? ans.correctAnswer,
     };
 
-    // Восстанавливаем варианты для multiple/checkbox
-    if (
-      (ans.type === "multiple" || ans.type === "checkbox") &&
-      ans.options?.length
-    ) {
-      base.value_1 = ans.options[0] ?? null;
-      base.value_2 = ans.options[1] ?? null;
-      base.value_3 = ans.options[2] ?? null;
-      base.value_4 = ans.options[3] ?? null;
+    // 🔧 ВОССТАНАВЛИВАЕМ ВСЕ ДАННЫЕ
+    if (ans.options) {
+      if (ans.type === "multiple" || ans.type === "checkbox") {
+        // Восстанавливаем все value_1, value_2 и т.д.
+        Object.keys(ans.options).forEach((key) => {
+          if (key.startsWith("value_")) {
+            base[key] = ans.options[key];
+          }
+        });
+      } else if (ans.type === "matching") {
+        base.pairs = ans.options.pairs || ans.correctAnswer || {};
+        base.leftColumn = ans.options.leftColumn || Object.keys(base.pairs);
+        base.rightColumn = ans.options.rightColumn || Object.values(base.pairs);
+      }
+    }
+
+    // Если options нет, но есть correctAnswerKey (для multiple)
+    if (!ans.options && ans.type === "multiple" && ans.correctAnswerKey) {
+      // Пытаемся восстановить из correctAnswer (текст)
+      base.value_1 = ans.correctAnswer || "Вариант 1";
     }
 
     return base;
@@ -1077,12 +1383,11 @@ const startPostTestRepeat = (mode) => {
   }
 
   questions.value = questionsToRepeat;
-  // 🔧 Правильная инициализация ответов
   answers.value = questionsToRepeat.map((q) => {
     if (q.type === "text") return "";
     if (q.type === "checkbox") return [];
     if (q.type === "matching") {
-      const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+      const leftColumn = q.leftColumn || (q.pairs ? Object.keys(q.pairs) : []);
       const initial = {};
       for (const left of leftColumn) {
         initial[left] = "";
@@ -1110,7 +1415,12 @@ const loadHistory = async () => {
       limit(20),
     );
     const snapshot = await getDocs(q);
-    history.value = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    // ✅ ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ ЗДЕСЬ
+    history.value = snapshot.docs.map((doc) => {
+      const data = { id: doc.id, ...doc.data() };
+      return normalizeHistoryItem(data);
+    });
   } catch (err) {
     console.error("Ошибка загрузки истории:", err);
   } finally {
@@ -1119,6 +1429,25 @@ const loadHistory = async () => {
 };
 
 const viewDetails = (item) => {
+  console.log("📋 View details - FULL DEBUG:", {
+    quizTitle: item.quizTitle,
+    answersCount: item.answers?.length,
+  });
+
+  item.answers?.forEach((ans, idx) => {
+    if (ans.type === "checkbox") {
+      console.log(`🔍 Checkbox Answer #${idx + 1}:`, {
+        q: ans.q?.substring(0, 50) + "...",
+        type: ans.type,
+        correctAnswer: ans.correctAnswer,
+        correctAnswerType: typeof ans.correctAnswer,
+        correctAnswerIsArray: Array.isArray(ans.correctAnswer),
+        options: ans.options,
+        optionsKeys: ans.options ? Object.keys(ans.options) : null,
+      });
+    }
+  });
+
   selectedResult.value = item;
   showDetails.value = true;
 };
@@ -1157,20 +1486,20 @@ const startRepeat = () => {
         correct_answer: ans.correctAnswerKey ?? ans.correctAnswer,
       };
 
-      // 🔧 Восстанавливаем варианты для multiple/checkbox
-      if (
-        (ans.type === "multiple" || ans.type === "checkbox") &&
-        ans.options?.length
-      ) {
-        base.value_1 = ans.options[0] ?? null;
-        base.value_2 = ans.options[1] ?? null;
-        base.value_3 = ans.options[2] ?? null;
-        base.value_4 = ans.options[3] ?? null;
-      }
-
-      // 🔧 Для boolean
-      if (ans.type === "boolean") {
-        // correct_answer уже установлен выше
+      // 🔧 Восстанавливаем options если есть
+      if (ans.options) {
+        if (ans.type === "multiple" || ans.type === "checkbox") {
+          // Восстанавливаем value_1, value_2 и т.д.
+          Object.assign(base, ans.options);
+        } else if (ans.type === "matching") {
+          // 🔧 Восстанавливаем matching данные
+          base.pairs = ans.options.pairs || ans.correctAnswer || {};
+          base.leftColumn = ans.options.leftColumn || Object.keys(base.pairs);
+          base.rightColumn =
+            ans.options.rightColumn || Object.values(base.pairs);
+        } else if (ans.type === "boolean") {
+          // Для boolean correct_answer уже установлен
+        }
       }
 
       return base;
@@ -1196,15 +1525,15 @@ const startRepeat = () => {
 
     console.log("🔁 Начинаем повтор:", questionsToRepeat.length, "вопросов");
 
-    // ✅ Сначала устанавливаем вопросы
     questions.value = questionsToRepeat;
 
-    // ✅ Инициализируем ответы
     answers.value = questionsToRepeat.map((q) => {
       if (q.type === "text") return "";
       if (q.type === "checkbox") return [];
       if (q.type === "matching") {
-        const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+        // ✅ БЕЗОПАСНАЯ инициализация matching
+        const leftColumn =
+          q.leftColumn || (q.pairs ? Object.keys(q.pairs) : []);
         const initial = {};
         for (const left of leftColumn) {
           initial[left] = "";
@@ -1215,18 +1544,13 @@ const startRepeat = () => {
       return null;
     });
 
-    // ✅ Сбрасываем состояние
     done.value = false;
     questionRefs.value = [];
     selectedForRepeat.value = [];
 
-    // ✅ ТОЛЬКО ПОСЛЕ этого закрываем модалку
     closeRepeatModal();
-
-    // ✅ Прокрутка и фокус
     window.scrollTo({ top: 0, behavior: "auto" });
 
-    // ✅ Фокус на первый вопрос (через nextTick)
     nextTick(() => {
       if (questionRefs.value[0]) {
         questionRefs.value[0].scrollIntoView({
@@ -1238,11 +1562,22 @@ const startRepeat = () => {
   } catch (error) {
     console.error("❌ Ошибка при повторе теста:", error);
     alert("Произошла ошибка при запуске повторного теста: " + error.message);
-    // Возвращаем кнопки в случае ошибки
     closeRepeatModal();
   }
 };
+// 🔧 Фильтрация опций для безопасного отображения в истории
+const getFilteredOptions = (options) => {
+  if (!options || typeof options !== "object") return {};
 
+  const filtered = {};
+  for (const [key, value] of Object.entries(options)) {
+    // Проверяем что ключ - строка и начинается с value_
+    if (typeof key === "string" && key.startsWith("value_")) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+};
 const deleteResult = async (id) => {
   if (!confirm("Удалить этот результат?")) return;
   try {
@@ -2123,5 +2458,59 @@ onMounted(() => {
 
 .json-action-btn.copied {
   animation: pulse-success 0.3s ease;
+}
+.matching-list-view {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.9em;
+}
+.matching-list-view li {
+  margin-bottom: 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-color);
+}
+.answer-value {
+  flex: 1;
+  word-break: break-word; /* Чтобы длинные формулы не ломали верстку */
+}
+.answer-options-list {
+  margin: 10px 0;
+  padding: 10px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+
+.option-item {
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.option-item.option-correct {
+  background: var(--success-bg);
+  color: var(--success-text);
+  font-weight: 500;
+}
+
+.option-key {
+  font-weight: 600;
+  min-width: 24px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.option-text {
+  flex: 1;
+}
+
+.correct-mark {
+  margin-left: auto;
+  font-weight: bold;
+  flex-shrink: 0;
 }
 </style>
