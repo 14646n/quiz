@@ -766,27 +766,31 @@ const loadFromJson = () => {
       type: q.type || (q.value_1 ? "multiple" : "text"),
     }));
 
-    // 🔧 ИНИЦИАЛИЗАЦИЯ ОТВЕТОВ:
     answers.value = questions.value.map((q) => {
       if (q.type === "text") return "";
       if (q.type === "checkbox") return [];
       if (q.type === "matching") {
-        // ✅ Создаём объект с ключами из leftColumn, чтобы v-model работал
         const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
         const initial = {};
         for (const left of leftColumn) {
-          initial[left] = ""; // Пустая строка = "не выбрано"
+          initial[left] = "";
         }
         return initial;
-      } // ✅ ПУСТОЙ ОБЪЕКТ для соответствий!
-      if (q.type === "boolean") return ""; // ✅ ПУСТАЯ СТРОКА для boolean
-      return null; // для multiple
+      }
+      if (q.type === "boolean") return "";
+      return null;
     });
 
     done.value = false;
     questionRefs.value = [];
     resetPostTestState();
+
+    // ✅ Прокрутка к тесту
+    nextTick(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
   } catch (e) {
+    console.error("Ошибка парсинга JSON:", e);
     alert("Ошибка парсинга JSON: " + e.message);
   }
 };
@@ -1140,61 +1144,103 @@ const toggleRepeatSelection = (idx) => {
 };
 
 const startRepeat = () => {
-  if (!repeatSource.value) return;
+  try {
+    if (!repeatSource.value) {
+      console.error("Нет источника для повторения");
+      return;
+    }
 
-  const buildQuestion = (ans) => {
-    const base = {
-      question: ans.q,
-      type: ans.type,
-      correct_answer: ans.correctAnswer,
+    const buildQuestion = (ans) => {
+      const base = {
+        question: ans.q,
+        type: ans.type,
+        correct_answer: ans.correctAnswerKey ?? ans.correctAnswer,
+      };
+
+      // 🔧 Восстанавливаем варианты для multiple/checkbox
+      if (
+        (ans.type === "multiple" || ans.type === "checkbox") &&
+        ans.options?.length
+      ) {
+        base.value_1 = ans.options[0] ?? null;
+        base.value_2 = ans.options[1] ?? null;
+        base.value_3 = ans.options[2] ?? null;
+        base.value_4 = ans.options[3] ?? null;
+      }
+
+      // 🔧 Для boolean
+      if (ans.type === "boolean") {
+        // correct_answer уже установлен выше
+      }
+
+      return base;
     };
 
-    if (ans.type !== "text" && ans.options?.length) {
-      base.value_1 = ans.options[0] ?? null;
-      base.value_2 = ans.options[1] ?? null;
-      base.value_3 = ans.options[2] ?? null;
-      base.value_4 = ans.options[3] ?? null;
+    let questionsToRepeat = [];
+    if (repeatMode.value === "all") {
+      questionsToRepeat = repeatSource.value.answers.map(buildQuestion);
+    } else if (repeatMode.value === "wrong") {
+      questionsToRepeat = repeatSource.value.answers
+        .filter((a) => !a.isCorrect)
+        .map(buildQuestion);
+    } else if (repeatMode.value === "selected") {
+      questionsToRepeat = selectedForRepeat.value.map((idx) =>
+        buildQuestion(repeatSource.value.answers[idx]),
+      );
     }
 
-    return base;
-  };
+    if (questionsToRepeat.length === 0) {
+      alert("⚠️ Нет вопросов для повторения");
+      return;
+    }
 
-  let questionsToRepeat = [];
-  if (repeatMode.value === "all")
-    questionsToRepeat = repeatSource.value.answers.map(buildQuestion);
-  else if (repeatMode.value === "wrong")
-    questionsToRepeat = repeatSource.value.answers
-      .filter((a) => !a.isCorrect)
-      .map(buildQuestion);
-  else if (repeatMode.value === "selected")
-    questionsToRepeat = selectedForRepeat.value.map((idx) =>
-      buildQuestion(repeatSource.value.answers[idx]),
-    );
+    console.log("🔁 Начинаем повтор:", questionsToRepeat.length, "вопросов");
 
-  if (questionsToRepeat.length === 0) {
-    alert("⚠️ Нет вопросов для повторения");
-    return;
-  }
+    // ✅ Сначала устанавливаем вопросы
+    questions.value = questionsToRepeat;
 
-  questions.value = questionsToRepeat;
-  answers.value = questionsToRepeat.map((q) => {
-    if (q.type === "text") return "";
-    if (q.type === "checkbox") return [];
-    if (q.type === "matching") {
-      const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
-      const initial = {};
-      for (const left of leftColumn) {
-        initial[left] = "";
+    // ✅ Инициализируем ответы
+    answers.value = questionsToRepeat.map((q) => {
+      if (q.type === "text") return "";
+      if (q.type === "checkbox") return [];
+      if (q.type === "matching") {
+        const leftColumn = q.leftColumn || Object.keys(q.pairs || {});
+        const initial = {};
+        for (const left of leftColumn) {
+          initial[left] = "";
+        }
+        return initial;
       }
-      return initial;
-    }
-    if (q.type === "boolean") return "";
-    return null;
-  });
-  done.value = false;
-  questionRefs.value = [];
-  closeRepeatModal();
-  window.scrollTo({ top: 0, behavior: "auto" });
+      if (q.type === "boolean") return "";
+      return null;
+    });
+
+    // ✅ Сбрасываем состояние
+    done.value = false;
+    questionRefs.value = [];
+    selectedForRepeat.value = [];
+
+    // ✅ ТОЛЬКО ПОСЛЕ этого закрываем модалку
+    closeRepeatModal();
+
+    // ✅ Прокрутка и фокус
+    window.scrollTo({ top: 0, behavior: "auto" });
+
+    // ✅ Фокус на первый вопрос (через nextTick)
+    nextTick(() => {
+      if (questionRefs.value[0]) {
+        questionRefs.value[0].scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    });
+  } catch (error) {
+    console.error("❌ Ошибка при повторе теста:", error);
+    alert("Произошла ошибка при запуске повторного теста: " + error.message);
+    // Возвращаем кнопки в случае ошибки
+    closeRepeatModal();
+  }
 };
 
 const deleteResult = async (id) => {
